@@ -1,0 +1,156 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>WykopLamus</title>
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.0.0-alpha1/jquery.min.js"></script>
+	<script type="text/javascript" src="https://cdn.jsdelivr.net/q/1.0.1/q.min.js"></script>
+	
+	<style>
+		a.lama {
+			display: inline-block;
+			margin: 15px;
+			text-decoration: none;
+			background: #CCC;
+		}
+		
+		a.lama span {
+			margin: 5px;
+		}
+	</style>
+</head>
+<body>
+ <form id="lamuser">
+ Twój nick : <input type="text" id="nick" /> <input type="submit" value="Pobierz lamusa" />
+ </form>
+ 
+ 
+ <div id="lamy">
+ 
+ </div>
+ 
+ <script>
+ 
+	var lamuser = function(){
+	
+	};
+	
+	lamuser.prototype.domain = "a.wykop.pl";
+	lamuser.prototype.key = "S3CFNLWrM5";
+	lamuser.prototype.limit = 25;
+	
+	
+	lamuser.prototype.getData = function(url){
+		var deferred = Q.defer();
+			$.getJSON(url).done(function(data){
+				if(data.error){
+						deferred.reject(new Error(data.error.message));
+					return;
+				}
+				deferred.resolve(data);
+			}).fail(function(e) {
+				deferred.reject(new Error("Fuck, fuck, fuck"));
+		  });
+		  
+		return deferred.promise;
+	};
+	
+	lamuser.prototype.getLink = function(nick, module, method, page){
+			return ["//", this.domain, "/", module, "/", method, "/", nick, "/appkey,", this.key, ",format,json,page,", page].join("");
+	};
+	
+	
+	lamuser.prototype._convertUsersList = function(users, startList){
+		var result = startList || {};
+		users.forEach(function(item){
+			result[item.login] = item;
+		});
+		
+		return result;
+	};	
+	
+	lamuser.prototype._getUserList = function(nick, method, list){
+		var startList = list || {};
+		var self = this;
+		
+	
+		var page = Math.floor(Object.keys(startList).length / this.limit) + 1;
+				
+		var url = this.getLink(nick, "profile", method, page);
+		var self = this;
+		return this.getData(url).then(function(d){
+			var list = self._convertUsersList(d, startList);
+			if(d.length >= self.limit){
+				return self._getUserList(nick,method, list);
+			}
+			return list;
+		})
+	};
+	
+	
+	
+	lamuser.prototype.getFollowers = function(nick){
+		return this._getUserList(nick, "followers");
+	};	
+	
+	
+	lamuser.prototype.getFollowed = function(nick){
+		return this._getUserList(nick, "followed");
+	};
+	
+	$(function(){
+		
+		var lamuserInstance = new lamuser();
+		var $nick = $("#nick");
+		var $lamyWrapper = $("#lamy");
+		
+		$("form").on("submit", function(){
+			
+			setTimeout(function(){
+				$lamyWrapper.html("");
+				var nick =  $nick.val().trim();
+				if(nick.length < 3){
+					alert("No weź się ogarnij. Podaj prawidłowy nick")
+					return false;
+				}
+				
+				var data = {};
+				lamuserInstance.getFollowers(nick).then(function(followers){
+					data.followers = followers;
+					return lamuserInstance.getFollowed(nick);
+				}).then(function(followed){
+					data.followed = followed;
+					return data;
+				}).then(function(){
+					var $a = null;
+					var $img = null;
+					var $span = null;
+					
+					Object.keys(data.followed).forEach(function(nick){
+						if(!data.followers[nick]){
+							var user = data.followed[nick];
+							var $a = $("<a>");
+							$a.addClass("lama");
+							$a.attr("href", user.url);
+							$a.attr("target", "_blank");
+							$img = $("<img>").attr("src", user.avatar_med);
+							$a.append($img)
+							
+							$span = $("<span>").text(nick);
+							$a.append($span);
+							
+							$lamyWrapper.append($a);
+						}
+					});
+				}).fail(function(e){
+					alert(e.toString());
+				});
+			}, 1);
+			
+			return false;
+		})
+		
+	});
+ </script>
+</body>
+</html>
